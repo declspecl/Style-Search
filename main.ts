@@ -1,15 +1,23 @@
-import { App, Editor, MarkdownPostProcessorContext, MarkdownRenderChild, MarkdownRenderer, MarkdownView, Modal, Notice, Plugin, PluginSettingTab, Setting, ToggleComponent } from 'obsidian';
+import { MarkdownRenderChild, Plugin } from 'obsidian';
+
+import SearchStyleSettings from 'settings';
+
+interface PatternStyle
+{
+	pattern: string,
+	style: string
+}
 
 interface MyPluginSettings
 {
 	active: boolean;
-	pattern_styling: Map<string, string>;
+	pattern_styling: Array<PatternStyle>
 }
 
 const DEFAULT_SETTINGS: MyPluginSettings =
 {
 	active: true,
-	pattern_styling: new Map<string, string>()
+	pattern_styling: []
 }
 
 export default class SearchStyle extends Plugin
@@ -41,7 +49,7 @@ export default class SearchStyle extends Plugin
 
 		this.registerMarkdownPostProcessor((element, context) =>
 		{
-			const search_criteria: RegExp = /236P/g;
+			const search_criteria = /236P/g;
 			const valid_elements = element.querySelectorAll(":not(script)") as NodeListOf<HTMLElement>;
 
 			console.log("postprocessor called: " + valid_elements);
@@ -55,7 +63,7 @@ export default class SearchStyle extends Plugin
 			}
 		})
 
-		this.registerInterval(window.setInterval(() => console.log('setInterval'), 5 * 60 * 1000));
+		// this.registerInterval(window.setInterval(() => console.log('setInterval'), 5 * 60 * 1000));
 	}
 
 	onunload()
@@ -71,6 +79,41 @@ export default class SearchStyle extends Plugin
 	async saveSettings()
 	{
 		await this.saveData(this.settings);
+	}
+
+	getPatternStyle(pattern: string): string
+	{
+		for (const pattern_style of this.settings.pattern_styling)
+		{
+			if (pattern_style.pattern === pattern)
+				return pattern_style.style;
+		}
+
+		return "";
+	}
+
+	setPatternStyle(pattern: string, style: string)
+	{
+		console.log("before: " + this.settings.pattern_styling);
+
+		for (let i = 0; i < this.settings.pattern_styling.length; i++)
+		{
+			if (this.settings.pattern_styling[i].pattern === pattern)
+			{
+				this.settings.pattern_styling[i].style = style;
+
+				return;
+			}
+		}
+
+		this.settings.pattern_styling.push({pattern, style});
+
+		console.log("after: " + this.settings.pattern_styling);
+	}
+
+	deletePatternStyle(index: number)
+	{
+		this.settings.pattern_styling = this.settings.pattern_styling.slice(0, index).concat(this.settings.pattern_styling.slice(index + 1))
 	}
 }
 
@@ -89,90 +132,9 @@ class SearchStyleMatch extends MarkdownRenderChild
 	{
 		const matchEl = this.containerEl.createSpan(
 		{
-		  	text: this.text
+			text: "MATCH"
 		});
 
 		this.containerEl.replaceWith(matchEl);
-	}
-}
-
-class SearchStyleSettings extends PluginSettingTab
-{
-	plugin: SearchStyle;
-
-	constructor(app: App, plugin: SearchStyle)
-	{
-		super(app, plugin);
-
-		this.plugin = plugin;
-	}
-
-	display(): void
-	{
-		console.table(this.plugin.settings);
-
-		const {containerEl} = this;
-
-		containerEl.empty();
-		containerEl.createEl('h2', {text: "Search Style Settings"});
-
-		new Setting(containerEl)
-			.setName('Display highlighting')
-			.setDesc('Controls whether the highlighting is active or not')
-			.addToggle(toggleElement => toggleElement
-				.onChange(new_value =>
-				{
-					this.plugin.settings.active = new_value;
-
-					this.plugin.saveSettings();
-				})
-				.setValue(this.plugin.settings.active))
-
-		new Setting(containerEl)
-			.setName("RegExp Search Criteria")
-			.setDesc("Regular expression patterns to search markdown against (separate by newlines)")
-			.addText(text => text
-				.setPlaceholder("^Hello, World!$")
-				.inputEl.id = "pattern_input")
-			.addButton(button => button
-				.setButtonText("Add")
-				.onClick(evt =>
-				{
-					const pattern_input: HTMLInputElement = this.containerEl.querySelector("#pattern_input") as HTMLInputElement;
-					
-					this.plugin.settings.pattern_styling = this.plugin.settings.pattern_styling.set(pattern_input.value, "");
-
-					pattern_input.value = "";
-
-					this.plugin.saveSettings();
-					this.display();
-				}))
-
-		for (const pattern of this.plugin.settings.pattern_styling.keys())
-		{
-			new Setting(containerEl)
-				.setName(pattern + " Styling")
-				.setDesc("The CSS style that will be applied to " + pattern)
-				.addText(text => text
-					.setPlaceholder("background-color: lime;\ncolor: red;")
-					.onChange(new_value =>
-					{
-						this.plugin.settings.pattern_styling.set(pattern, new_value);
-
-						this.plugin.saveSettings();
-					}))
-				.addButton(button => button
-					.setIcon("trash-2")
-					.onClick(evt =>
-					{
-						this.plugin.settings.pattern_styling.delete(pattern);
-
-						this.plugin.saveSettings();
-						this.display();
-					}))
-		}
-
-		console.log("pattern_styling: ");
-		console.table(this.plugin.settings.pattern_styling);
 	}
 }
