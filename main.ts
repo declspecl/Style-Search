@@ -1,4 +1,5 @@
 import { MarkdownRenderChild, Plugin } from 'obsidian';
+import { Decoration, DecorationSet } from '@codemirror/view';
 
 import SearchStyleSettings from 'settings';
 
@@ -23,6 +24,7 @@ const DEFAULT_SETTINGS: MyPluginSettings =
 export default class SearchStyle extends Plugin
 {
 	settings: MyPluginSettings;
+	decorations: DecorationSet;
 
 	async onload()
 	{
@@ -42,11 +44,6 @@ export default class SearchStyle extends Plugin
 
 		this.addSettingTab(new SearchStyleSettings(this.app, this));
 
-		this.registerDomEvent(document, 'click', (evt: MouseEvent) =>
-		{
-			console.log('click', evt);
-		});
-
 		this.registerMarkdownPostProcessor((element, context) =>
 		{
 			const search_criteria = /236P/g;
@@ -63,8 +60,44 @@ export default class SearchStyle extends Plugin
 			}
 		})
 
-		// this.registerInterval(window.setInterval(() => console.log('setInterval'), 5 * 60 * 1000));
+		this.registerCodeMirror((cm) =>
+		{
+			const decorations: Array<Decoration> = [];
+	
+			// Find all occurrences of the string "236P" in the editor
+			cm.doc.iter((line: any) =>
+			{
+				const text = line.text;
+				const regex = /236P/g;
+				let match;
+		
+				while ((match = regex.exec(text)) !== null)
+				{
+					const from = match.index;
+					const to = from + match[0].length;
+					const decoration = Decoration.mark(
+					{
+						from,
+						to,
+						tagName: 'span',
+						class: 'my-decoration-class',
+						attributes:
+						{
+							'data-tooltip': 'This is an example decoration',
+						},
+					});
+					decorations.push(decoration);
+				}
+			});
+	
+			// Update the decorations in the editor
+			const decorationSet = DecorationSet.create(cm.state.doc, decorations);
+			Decoration.set(cm, decorationSet);
+			this.decorations = decorationSet;
+		});
 	}
+
+	// this.registerInterval(window.setInterval(() => console.log('setInterval'), 5 * 60 * 1000));
 
 	onunload()
 	{
