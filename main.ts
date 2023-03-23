@@ -1,21 +1,23 @@
-import { MarkdownRenderChild, Plugin } from 'obsidian';
-import { Decoration, DecorationSet } from '@codemirror/view';
+import { MarkdownPostProcessor, MarkdownPreviewView, MarkdownRenderChild, MarkdownRenderer, MarkdownView, Plugin } from 'obsidian';
+import { Decoration, DecorationSet, PluginSpec, ViewPlugin } from '@codemirror/view';
 
-import SearchStyleSettings from 'settings';
+import SearchStyleSettingsTab from 'settings';
+// import StyleEditor from 'editor';
+// import getStyleEditor from 'editor';
 
-interface PatternStyle
+export interface PatternStyle
 {
 	pattern: string,
 	style: string
 }
 
-interface MyPluginSettings
+export interface SearchStyleSettings
 {
 	active: boolean;
 	pattern_styling: Array<PatternStyle>
 }
 
-const DEFAULT_SETTINGS: MyPluginSettings =
+const DEFAULT_SETTINGS: SearchStyleSettings =
 {
 	active: true,
 	pattern_styling: []
@@ -23,12 +25,33 @@ const DEFAULT_SETTINGS: MyPluginSettings =
 
 export default class SearchStyle extends Plugin
 {
-	settings: MyPluginSettings;
-	decorations: DecorationSet;
+	settings: SearchStyleSettings;
 
 	async onload()
 	{
 		await this.loadSettings();
+
+		this.registerMarkdownPostProcessor((element, context) =>
+		{
+			const valid_elements = element.querySelectorAll(":not(script)") as NodeListOf<HTMLElement>;
+
+			for (let i = 0; i < valid_elements.length; i++)
+			{
+				for (const {pattern, style} of this.settings.pattern_styling)
+				{
+					const r_pattern: RegExp = new RegExp(pattern, "g");
+
+					if (r_pattern.test(valid_elements[i].textContent as string))
+					{
+						context.addChild(new SearchStyleMatch(
+							valid_elements[i],
+							valid_elements[i].textContent as string,
+							new RegExp(pattern, "g"),
+							style));
+					}
+				}
+			}
+		});
 
 		this.addCommand(
 		{
@@ -38,66 +61,15 @@ export default class SearchStyle extends Plugin
 			{
 				this.settings.active = !this.settings.active;
 
-				this.saveSettings();
+				const markDownViewObj = this.app.workspace.getActiveViewOfType(MarkdownView);
+
+				// @ts-ignore
+				markDownViewObj.leaf.rebuildView();
 			}
 		});
 
-		this.addSettingTab(new SearchStyleSettings(this.app, this));
-
-		this.registerMarkdownPostProcessor((element, context) =>
-		{
-			const search_criteria = /236P/g;
-			const valid_elements = element.querySelectorAll(":not(script)") as NodeListOf<HTMLElement>;
-
-			console.log("postprocessor called: " + valid_elements);
-
-			for (let i = 0; i < valid_elements.length; i++)
-			{
-				if (search_criteria.test(valid_elements[i].textContent as string))
-				{
-					context.addChild(new SearchStyleMatch(valid_elements.item(i), "236P"));
-				}
-			}
-		})
-
-		this.registerCodeMirror((cm) =>
-		{
-			const decorations: Array<Decoration> = [];
-	
-			// Find all occurrences of the string "236P" in the editor
-			cm.doc.iter((line: any) =>
-			{
-				const text = line.text;
-				const regex = /236P/g;
-				let match;
-		
-				while ((match = regex.exec(text)) !== null)
-				{
-					const from = match.index;
-					const to = from + match[0].length;
-					const decoration = Decoration.mark(
-					{
-						from,
-						to,
-						tagName: 'span',
-						class: 'my-decoration-class',
-						attributes:
-						{
-							'data-tooltip': 'This is an example decoration',
-						},
-					});
-					decorations.push(decoration);
-				}
-			});
-	
-			// Update the decorations in the editor
-			const decorationSet = DecorationSet.create(cm.state.doc, decorations);
-			Decoration.set(cm, decorationSet);
-			this.decorations = decorationSet;
-		});
+		this.addSettingTab(new SearchStyleSettingsTab(this.app, this));
 	}
-
-	// this.registerInterval(window.setInterval(() => console.log('setInterval'), 5 * 60 * 1000));
 
 	onunload()
 	{
@@ -127,8 +99,6 @@ export default class SearchStyle extends Plugin
 
 	setPatternStyle(pattern: string, style: string)
 	{
-		console.log("before: " + this.settings.pattern_styling);
-
 		for (let i = 0; i < this.settings.pattern_styling.length; i++)
 		{
 			if (this.settings.pattern_styling[i].pattern === pattern)
@@ -140,8 +110,6 @@ export default class SearchStyle extends Plugin
 		}
 
 		this.settings.pattern_styling.push({pattern, style});
-
-		console.log("after: " + this.settings.pattern_styling);
 	}
 
 	deletePatternStyle(index: number)
@@ -152,22 +120,107 @@ export default class SearchStyle extends Plugin
 
 class SearchStyleMatch extends MarkdownRenderChild
 {
-	text: string;
+	pattern: RegExp;
+	full_text: string;
+	style: string;
 
-	constructor(containerEl: HTMLElement, text: string)
+	constructor(containerEl: HTMLElement, full_text: string, pattern: RegExp, style: string)
 	{
 		super(containerEl);
 
-		this.text = text;
+		this.pattern = pattern;
+		this.full_text = full_text;
+		this.style = style;
 	}
 
 	onload()
 	{
-		const matchEl = this.containerEl.createSpan(
+		interface matchStruct
 		{
-			text: "MATCH"
-		});
+			text: string;
+			starting_index: number;
+		};
 
-		this.containerEl.replaceWith(matchEl);
+		const nonMatches: Array<matchStruct> = [];
+		const matches: Array<matchStruct> = [];
+
+		let match;
+		do
+		{
+			match = this.pattern.exec(this.full_text);
+
+			if (match)
+			{
+				matches.push({ text: match[0], starting_index: match.index});
+			}			
+		}
+		while (match);
+		
+		const elements = this.full_text.split(this.pattern);
+
+		let lBound: number = 0;
+
+		for (let i = 0; i < elements.length; i++)
+		{
+			if (elements[i] == "")
+				continue;
+
+			const element = elements[i];
+
+			const index = this.full_text.indexOf(element, lBound);
+
+			lBound = index + element.length;
+			
+			nonMatches.push({ text: elements[i], starting_index: index });
+		}
+
+		let match_index = 0;
+		let nonmatch_index = 0;
+
+		const main_span = this.containerEl.createSpan();
+
+		while (match_index <= matches.length - 1 && nonmatch_index <= nonMatches.length - 1)
+		{
+			if (matches[match_index].starting_index < nonMatches[nonmatch_index].starting_index)
+			{
+				main_span.createSpan(
+				{
+					text: matches[match_index].text
+				}).setAttr("style", this.style.trim());
+				
+				match_index += 1;
+			}
+			else
+			{
+				main_span.createSpan(
+				{
+					text: nonMatches[nonmatch_index].text
+				});
+
+				nonmatch_index += 1;
+			}
+		}
+
+		while (match_index <= matches.length - 1)
+		{
+			main_span.createSpan(
+			{
+				text: matches[match_index].text
+			}).setAttr("style", this.style.trim());
+			
+			match_index += 1;
+		}
+
+		while (nonmatch_index <= nonMatches.length - 1)
+		{
+			main_span.createSpan(
+			{
+				text: matches[nonmatch_index].text
+			});
+			
+			nonmatch_index += 1;
+		}
+		
+		this.containerEl.replaceChildren(main_span);
 	}
 }
