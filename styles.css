@@ -1,4 +1,6 @@
 .searchstyle_style_textarea
 {
+    min-height: 5em;
+    
     resize: vertical;
 }

@@ -1,9 +1,11 @@
-import { MarkdownPostProcessor, MarkdownPreviewView, MarkdownRenderChild, MarkdownRenderer, MarkdownView, Plugin } from 'obsidian';
-import { Decoration, DecorationSet, PluginSpec, ViewPlugin } from '@codemirror/view';
+import { Plugin } from 'obsidian';
 
-import SearchStyleSettingsTab from 'settings';
-// import StyleEditor from 'editor';
-// import getStyleEditor from 'editor';
+import SSSettingsTab from 'settingsTab';
+import SSStyledSection from 'styledSection';
+
+/*
+	Settings Configuration
+*/
 
 export interface PatternStyle
 {
@@ -23,6 +25,10 @@ const DEFAULT_SETTINGS: SearchStyleSettings =
 	pattern_styling: []
 }
 
+/*
+	Main Plugin
+*/
+
 export default class SearchStyle extends Plugin
 {
 	settings: SearchStyleSettings;
@@ -30,9 +36,13 @@ export default class SearchStyle extends Plugin
 	async onload()
 	{
 		await this.loadSettings();
+		
+		this.addSettingTab(new SSSettingsTab(this.app, this));
 
 		this.registerMarkdownPostProcessor((element, context) =>
 		{
+			if (!this.settings.active) return;
+
 			const valid_elements = element.querySelectorAll(":not(script)") as NodeListOf<HTMLElement>;
 
 			for (let i = 0; i < valid_elements.length; i++)
@@ -43,15 +53,18 @@ export default class SearchStyle extends Plugin
 
 					if (r_pattern.test(valid_elements[i].textContent as string))
 					{
-						context.addChild(new SearchStyleMatch(
+						context.addChild(new SSStyledSection(
 							valid_elements[i],
 							valid_elements[i].textContent as string,
 							new RegExp(pattern, "g"),
-							style));
+							style)
+						);
 					}
 				}
 			}
 		});
+
+		/* EXPERIMENTAL: redraws markdownview to reset highlighting but is unstable
 
 		this.addCommand(
 		{
@@ -61,14 +74,12 @@ export default class SearchStyle extends Plugin
 			{
 				this.settings.active = !this.settings.active;
 
-				const markDownViewObj = this.app.workspace.getActiveViewOfType(MarkdownView);
+				const markdownView = this.app.workspace.getActiveViewOfType(MarkdownView);
 
 				// @ts-ignore
-				markDownViewObj.leaf.rebuildView();
+				markdownView.leaf.rebuildView();
 			}
-		});
-
-		this.addSettingTab(new SearchStyleSettingsTab(this.app, this));
+		}); */
 	}
 
 	onunload()
@@ -86,6 +97,7 @@ export default class SearchStyle extends Plugin
 		await this.saveData(this.settings);
 	}
 
+	// returns the style mapped to a pattern if it exists, and an empty string if it does not
 	getPatternStyle(pattern: string): string
 	{
 		for (const pattern_style of this.settings.pattern_styling)
@@ -97,7 +109,8 @@ export default class SearchStyle extends Plugin
 		return "";
 	}
 
-	setPatternStyle(pattern: string, style: string)
+	// updates the style of a pattern if it exists, creating the entry if it does not exist
+	setPatternStyle(pattern: string, style: string): void
 	{
 		for (let i = 0; i < this.settings.pattern_styling.length; i++)
 		{
@@ -112,115 +125,12 @@ export default class SearchStyle extends Plugin
 		this.settings.pattern_styling.push({pattern, style});
 	}
 
-	deletePatternStyle(index: number)
+	// edits the pattern styling map to not include the entry at the given index
+	deletePatternStyle(index: number): void
 	{
-		this.settings.pattern_styling = this.settings.pattern_styling.slice(0, index).concat(this.settings.pattern_styling.slice(index + 1))
+		if (index >= 0 && index < this.settings.pattern_styling.length)
+			this.settings.pattern_styling = this.settings.pattern_styling.slice(0, index).concat(this.settings.pattern_styling.slice(index + 1))
 	}
 }
 
-class SearchStyleMatch extends MarkdownRenderChild
-{
-	pattern: RegExp;
-	full_text: string;
-	style: string;
-
-	constructor(containerEl: HTMLElement, full_text: string, pattern: RegExp, style: string)
-	{
-		super(containerEl);
-
-		this.pattern = pattern;
-		this.full_text = full_text;
-		this.style = style;
-	}
-
-	onload()
-	{
-		interface matchStruct
-		{
-			text: string;
-			starting_index: number;
-		};
-
-		const nonMatches: Array<matchStruct> = [];
-		const matches: Array<matchStruct> = [];
-
-		let match;
-		do
-		{
-			match = this.pattern.exec(this.full_text);
-
-			if (match)
-			{
-				matches.push({ text: match[0], starting_index: match.index});
-			}			
-		}
-		while (match);
-		
-		const elements = this.full_text.split(this.pattern);
-
-		let lBound: number = 0;
-
-		for (let i = 0; i < elements.length; i++)
-		{
-			if (elements[i] == "")
-				continue;
-
-			const element = elements[i];
-
-			const index = this.full_text.indexOf(element, lBound);
-
-			lBound = index + element.length;
-			
-			nonMatches.push({ text: elements[i], starting_index: index });
-		}
-
-		let match_index = 0;
-		let nonmatch_index = 0;
-
-		const main_span = this.containerEl.createSpan();
-
-		while (match_index <= matches.length - 1 && nonmatch_index <= nonMatches.length - 1)
-		{
-			if (matches[match_index].starting_index < nonMatches[nonmatch_index].starting_index)
-			{
-				main_span.createSpan(
-				{
-					text: matches[match_index].text
-				}).setAttr("style", this.style.trim());
-				
-				match_index += 1;
-			}
-			else
-			{
-				main_span.createSpan(
-				{
-					text: nonMatches[nonmatch_index].text
-				});
-
-				nonmatch_index += 1;
-			}
-		}
-
-		while (match_index <= matches.length - 1)
-		{
-			main_span.createSpan(
-			{
-				text: matches[match_index].text
-			}).setAttr("style", this.style.trim());
-			
-			match_index += 1;
-		}
-
-		while (nonmatch_index <= nonMatches.length - 1)
-		{
-			main_span.createSpan(
-			{
-				text: matches[nonmatch_index].text
-			});
-			
-			nonmatch_index += 1;
-		}
-		
-		this.containerEl.replaceChildren(main_span);
-	}
-}
+// EOF

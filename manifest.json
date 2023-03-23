@@ -3,7 +3,7 @@
 	"name": "Search Style",
 	"version": "1.0.0",
 	"minAppVersion": "0.15.0",
-	"description": "Search style!",
+	"description": "A plugin that allows you to apply custom CSS styling from regular expression search patterns.",
 	"author": "declspecl",
 	"authorUrl": "https://github.com/declspecl",
 	"isDesktopOnly": false
