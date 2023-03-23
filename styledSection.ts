@@ -60,7 +60,7 @@ export default class SSStyledSection extends MarkdownRenderChild
 		}
 
 		// collection of spans to add sections to
-		const main_span: HTMLElement = this.containerEl.createSpan();
+		const main_collection: HTMLElement = this.containerEl.createDiv();
 
 		// merging matches and non-matches in original order based on starting index values
 		let match_index = 0;
@@ -70,19 +70,16 @@ export default class SSStyledSection extends MarkdownRenderChild
 		{
 			if (matches[match_index].starting_index < nonMatches[nonmatch_index].starting_index)
 			{
-				main_span.createSpan(
-				{
-					text: matches[match_index].text
-				}).setAttr("style", this.style.trim());
+				const span = main_collection.createSpan();
+				span.innerHTML = matches[match_index].text;
+				span.setAttr("style", this.style.trim());
 				
 				match_index += 1;
 			}
 			else
 			{
-				main_span.createSpan(
-				{
-					text: nonMatches[nonmatch_index].text
-				});
+				const span = main_collection.createSpan();
+				span.innerHTML = nonMatches[nonmatch_index].text;
 
 				nonmatch_index += 1;
 			}
@@ -91,25 +88,22 @@ export default class SSStyledSection extends MarkdownRenderChild
 		// clean up the rest of one or the other array
 		while (match_index < matches.length)
 		{
-			main_span.createSpan(
-			{
-				text: matches[match_index].text
-			}).setAttr("style", this.style.trim());
+			const span = main_collection.createSpan();
+				span.innerHTML = matches[match_index].text;
+				span.setAttr("style", this.style.trim());
 			
 			match_index += 1;
 		}
 
 		while (nonmatch_index < nonMatches.length)
 		{
-			main_span.createSpan(
-			{
-				text: matches[nonmatch_index].text
-			});
+			const span = main_collection.createSpan();
+			span.innerHTML = nonMatches[nonmatch_index].text;
 			
 			nonmatch_index += 1;
 		}
-		
-		this.containerEl.replaceChildren(main_span);
+
+		this.containerEl.replaceWith(main_collection);
 	}
 }
 

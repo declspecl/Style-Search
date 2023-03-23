@@ -43,11 +43,11 @@ export default class SearchStyle extends Plugin
 		{
 			if (!this.settings.active) return;
 
-			const valid_elements = element.querySelectorAll(":not(script)") as NodeListOf<HTMLElement>;
-
-			for (let i = 0; i < valid_elements.length; i++)
+			for (const {pattern, style} of this.settings.pattern_styling)
 			{
-				for (const {pattern, style} of this.settings.pattern_styling)
+				const valid_elements = element.querySelectorAll(":not(script) :not(span)") as NodeListOf<HTMLElement>;
+
+				for (let i = 0; i < valid_elements.length; i++)
 				{
 					const r_pattern: RegExp = new RegExp(pattern, "g");
 
@@ -55,7 +55,7 @@ export default class SearchStyle extends Plugin
 					{
 						context.addChild(new SSStyledSection(
 							valid_elements[i],
-							valid_elements[i].textContent as string,
+							valid_elements[i].innerHTML.trim(),
 							new RegExp(pattern, "g"),
 							style)
 						);
