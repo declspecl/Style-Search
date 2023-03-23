@@ -7,5 +7,5 @@ In the settings tab, you can add a regular expression in a text box labeled "Reg
 
 # Important Notes
 - This plugin unfortunately does not mesh well with lists. If a match is found in a list, the list's formatting will be removed. If no match is found, your list won't be changed, though.
-- Each styled group is placed in a  `span` tag, with each group of text, being non-matches and matches, being placed in more `span` tags. This is important to note if you are using CSS properties that require a certain display value.
+- Each styled group is placed in a  `div` tag, with each group of text, being non-matches and matches, being placed in more `span` tags. This is important to note if you are using CSS properties that require a certain display value.
 - After changing the highlighting settings, you will need to reload all currently open files to see the effects.
