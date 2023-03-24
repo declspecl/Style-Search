@@ -7,42 +7,42 @@ import { MarkdownRenderChild } from 'obsidian';
 export default class SSStyledSection extends MarkdownRenderChild
 {
 	pattern: RegExp;
-	full_text: string;
 	style: string;
 
-	constructor(containerEl: HTMLElement, full_text: string, pattern: RegExp, style: string)
+	constructor(containerEl: HTMLElement, pattern: RegExp, style: string)
 	{
 		super(containerEl);
 
 		this.pattern = pattern;
-		this.full_text = full_text;
 		this.style = style;
 	}
 
 	onload()
 	{
-		interface matchStruct
+		const element_content: string = this.containerEl.innerHTML;
+
+		interface matchSection
 		{
-			text: string;
+			content: string;
 			starting_index: number;
 		};
 
-		const nonMatches: Array<matchStruct> = [];
-		const matches: Array<matchStruct> = [];
+		const matches: Array<matchSection> = [];
+		const nonMatches: Array<matchSection> = [];
 
 		// find all matches of RegExp pattern
 		let match;
 		do
 		{
-			match = this.pattern.exec(this.full_text);
+			match = this.pattern.exec(element_content);
 
 			if (match)
-				matches.push({ text: match[0], starting_index: match.index});		
+				matches.push({ content: match[0], starting_index: match.index});		
 		}
 		while (match);
 
 		// find all non-matches
-		const elements = this.full_text.split(this.pattern);
+		const elements = element_content.split(this.pattern);
 
 		let lBound: number = 0;
 
@@ -52,9 +52,9 @@ export default class SSStyledSection extends MarkdownRenderChild
 			if (elements[i] == "")
 				continue;
 
-			const index = this.full_text.indexOf(elements[i], lBound);
+			const index = element_content.indexOf(elements[i], lBound);
 			
-			nonMatches.push({ text: elements[i], starting_index: index });
+			nonMatches.push({ content: elements[i].replace(/\r?\n|\r/g, ""), starting_index: index });
 
 			lBound = index + elements[i].length;
 		}
@@ -66,20 +66,22 @@ export default class SSStyledSection extends MarkdownRenderChild
 		let match_index = 0;
 		let nonmatch_index = 0;
 
+		// need to accumulate innerHTML into string instead of immediately affecting the DOM because incomplete tags
+		// are automatically closed when added to the DOM, causing errors.
+		// we use innerHTML to keep the formatting
+		let final_innerHTML: string = "";
+
 		while (match_index < matches.length && nonmatch_index < nonMatches.length)
 		{
 			if (matches[match_index].starting_index < nonMatches[nonmatch_index].starting_index)
 			{
-				const span = main_collection.createSpan();
-				span.innerHTML = matches[match_index].text;
-				span.setAttr("style", this.style.trim());
+				final_innerHTML += "<span style=\"" + this.style.trim() + "\">" + matches[match_index].content + "</span>"
 				
 				match_index += 1;
 			}
 			else
 			{
-				const span = main_collection.createSpan();
-				span.innerHTML = nonMatches[nonmatch_index].text;
+				final_innerHTML += nonMatches[nonmatch_index].content;
 
 				nonmatch_index += 1;
 			}
@@ -88,22 +90,22 @@ export default class SSStyledSection extends MarkdownRenderChild
 		// clean up the rest of one or the other array
 		while (match_index < matches.length)
 		{
-			const span = main_collection.createSpan();
-				span.innerHTML = matches[match_index].text;
-				span.setAttr("style", this.style.trim());
+			final_innerHTML += "<span style=\"" + this.style.trim() + "\">" + matches[match_index].content + "</span>"
 			
 			match_index += 1;
 		}
 
 		while (nonmatch_index < nonMatches.length)
 		{
-			const span = main_collection.createSpan();
-			span.innerHTML = nonMatches[nonmatch_index].text;
-			
+			final_innerHTML += nonMatches[nonmatch_index].content;
+
 			nonmatch_index += 1;
 		}
 
-		this.containerEl.replaceWith(main_collection);
+		main_collection.innerHTML = final_innerHTML;
+
+		// replaceWith causes weird behavior with lists, so replaceChildren it is 😊
+		this.containerEl.replaceChildren(main_collection);
 	}
 }
 
