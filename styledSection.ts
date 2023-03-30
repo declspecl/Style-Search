@@ -21,6 +21,8 @@ export default class SSStyledSection extends MarkdownRenderChild
 	{
 		const element_content: string = this.containerEl.innerHTML;
 
+		console.log("content: " + element_content)
+
 		interface matchSection
 		{
 			content: string;
@@ -59,8 +61,15 @@ export default class SSStyledSection extends MarkdownRenderChild
 			lBound = index + elements[i].length;
 		}
 
+		const keep_original_formatting: Array<String> = ["TABLE", "THEAD", "TH", "TBODY", "TR", "TD"];
+
+		console.log("tag name:", this.containerEl.tagName);
+		
 		// collection of spans to add sections to
-		const main_collection: HTMLElement = this.containerEl.createDiv();
+		// @ts-ignore
+		const main_collection: HTMLElement = (keep_original_formatting.contains(this.containerEl.tagName)) ? this.containerEl.createEl(this.containerEl.tagName) : this.containerEl.createDiv();
+
+		console.log("result:", main_collection.tagName);
 
 		// merging matches and non-matches in original order based on starting index values
 		let match_index = 0;
